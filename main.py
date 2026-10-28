@@ -8,18 +8,21 @@ PLAYER_SIZE = 24
 TITLE = "Little Yellow"
 
 class Game(arcade.Window):
-    """Main App Class"""
+    """Main app class: manages the game window and its contents"""
     
     def __init__(self):
+        # initialize the Arcade game window using our constants
         super().__init__(WIDTH, HEIGHT, TITLE)
         self.background_color = arcade.csscolor.BLACK
 
+        # Initialize these attributes so setup() can assign the
+        # SpriteLists and player sprite before the game is drawn
         self.player_list = None
         self.floor_list = None
         self.player = None
 
     def setup(self):
-
+        # create SpriteLists to organize the player and floor sprites.
         self.player_list = arcade.SpriteList()
         self.floor_list = arcade.SpriteList()
 
@@ -27,21 +30,36 @@ class Game(arcade.Window):
             PLAYER_SIZE, PLAYER_SIZE, color=arcade.color.ORANGE
         )
 
+        floor_center_y = TILE_SIZE / 2
+        
+        # Center the player horizontally and place its bottom edge
+        # on the floor's top edge
         self.player.center_x = WIDTH / 2
-        self.player.center_y = TILE_SIZE + (PLAYER_SIZE / 2)
+        self.player.center_y = floor_center_y + TILE_SIZE / 2 + PLAYER_SIZE / 2
+        
+        # Store the player so the SpriteList can draw it
         self.player_list.append(self.player)
 
-        # assumes WIDTH=800 and TILE_SIZE=32
+        # Create enough tiles to span the window's width.
+        # This currently assumes WIDTH is divisible  by TILE_SIZE
         for i in range(25):
             floor = arcade.SpriteSolidColor(TILE_SIZE, TILE_SIZE, color=arcade.csscolor.YELLOW)
+
+            # Calculate each tile's center from is left edge,
+            # so the tiles sit side by side without gaps
             floor.center_x = i * TILE_SIZE + TILE_SIZE / 2
-            floor.center_y = 16
+            floor.center_y = floor_center_y
+
+            # store each tile in the list so we can draw the floor
             self.floor_list.append(floor)
             
     def on_draw(self):
+        # Clear the previous frame before drawing the current scene.
         self.clear()
-        self.player_list.draw()
+
+        # Draw the floor first so the player appears in front of it.
         self.floor_list.draw()
+        self.player_list.draw()
 
 
 def main():
