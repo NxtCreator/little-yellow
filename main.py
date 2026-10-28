@@ -3,6 +3,8 @@ import arcade
 # GAME CONSTANTS
 WIDTH = 800
 HEIGHT = 600
+GRAVITY = 1
+PLAYER_JUMP_SPEED = 15
 TILE_SIZE = 32
 PLAYER_SIZE = 24
 PLAYER_SPEED = 5
@@ -16,12 +18,15 @@ class Game(arcade.Window):
         super().__init__(WIDTH, HEIGHT, TITLE)
         self.background_color = arcade.csscolor.BLACK
 
+        self.physics_engine = None
+
         # Initialize these attributes so setup() can assign the
         # SpriteLists and player sprite before the game is drawn
         self.player_list = None
         self.floor_list = None
         self.player = None
         
+        # Remember which keys are being held
         self.left_pressed = False
         self.right_pressed = False
 
@@ -56,6 +61,15 @@ class Game(arcade.Window):
 
             # store each tile in the list so we can draw the floor
             self.floor_list.append(floor)
+        
+        # create a physics engine to handle collisions and gravity
+        self.physics_engine = arcade.PhysicsEnginePlatformer(
+            self.player,
+            walls = self.floor_list,
+            gravity_constant=GRAVITY
+        )
+        
+        self.physics_engine.enable_multi_jump(2)
             
     def on_draw(self):
         # Clear the previous frame before drawing the current scene.
@@ -72,17 +86,18 @@ class Game(arcade.Window):
             self.player.change_x  = PLAYER_SPEED
         else:
             self.player.change_x = 0
-        self.player.update(delta_time)
+        self.physics_engine.update()
 
 
     def on_key_press(self, key, modifiers):
         
         if key == arcade.key.LEFT:
             self.left_pressed = True
-            self.player.change_x = -PLAYER_SPEED
         elif key == arcade.key.RIGHT:
             self.right_pressed = True
-            self.player.change_x = PLAYER_SPEED
+        elif key == arcade.key.UP:
+            if self.physics_engine.can_jump():
+                self.physics_engine.jump(PLAYER_JUMP_SPEED)
 
     def on_key_release(self, key, modifiers):
         if key == arcade.key.LEFT:
