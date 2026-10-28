@@ -5,6 +5,7 @@ WIDTH = 800
 HEIGHT = 600
 TILE_SIZE = 32
 PLAYER_SIZE = 24
+PLAYER_SPEED = 5
 TITLE = "Little Yellow"
 
 class Game(arcade.Window):
@@ -20,6 +21,9 @@ class Game(arcade.Window):
         self.player_list = None
         self.floor_list = None
         self.player = None
+        
+        self.left_pressed = False
+        self.right_pressed = False
 
     def setup(self):
         # create SpriteLists to organize the player and floor sprites.
@@ -60,6 +64,31 @@ class Game(arcade.Window):
         # Draw the floor first so the player appears in front of it.
         self.floor_list.draw()
         self.player_list.draw()
+
+    def on_update(self, delta_time):
+        if self.left_pressed:
+            self.player.change_x = -PLAYER_SPEED
+        elif self.right_pressed:
+            self.player.change_x  = PLAYER_SPEED
+        else:
+            self.player.change_x = 0
+        self.player.update(delta_time)
+
+
+    def on_key_press(self, key, modifiers):
+        
+        if key == arcade.key.LEFT:
+            self.left_pressed = True
+            self.player.change_x = -PLAYER_SPEED
+        elif key == arcade.key.RIGHT:
+            self.right_pressed = True
+            self.player.change_x = PLAYER_SPEED
+
+    def on_key_release(self, key, modifiers):
+        if key == arcade.key.LEFT:
+            self.left_pressed = False
+        elif key == arcade.key.RIGHT:
+            self.right_pressed = False
 
 
 def main():
