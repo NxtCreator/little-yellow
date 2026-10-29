@@ -25,6 +25,7 @@ class Game(arcade.Window):
         self.player_list = None
         self.floor_list = None
         self.player = None
+        self.hidden_list = None
         
         # Remember which keys are being held
         self.left_pressed = False
@@ -34,12 +35,15 @@ class Game(arcade.Window):
         # create SpriteLists to organize the player and floor sprites.
         self.player_list = arcade.SpriteList()
         self.floor_list = arcade.SpriteList()
-
-        self.player = arcade.SpriteSolidColor(
-            PLAYER_SIZE, PLAYER_SIZE, color=arcade.color.ORANGE
-        )
+        self.hidden_list = arcade.SpriteList()
 
         floor_center_y = TILE_SIZE / 2
+
+
+        self.player = arcade.SpriteSolidColor(
+            PLAYER_SIZE, PLAYER_SIZE, color=arcade.csscolor.ORANGE_RED
+        )
+
         
         # Center the player horizontally and place its bottom edge
         # on the floor's top edge
@@ -61,6 +65,14 @@ class Game(arcade.Window):
 
             # store each tile in the list so we can draw the floor
             self.floor_list.append(floor)
+
+        floor_top = floor_center_y + TILE_SIZE / 2
+
+        hidden_tile = arcade.SpriteSolidColor(TILE_SIZE, TILE_SIZE,
+                                              color=arcade.csscolor.YELLOW)
+        hidden_tile.center_x = WIDTH / 2 + 3 * TILE_SIZE
+        hidden_tile.center_y = floor_top + 2 * TILE_SIZE + TILE_SIZE / 2
+        self.hidden_list.append(hidden_tile)
         
         # create a physics engine to handle collisions and gravity
         self.physics_engine = arcade.PhysicsEnginePlatformer(
@@ -87,6 +99,14 @@ class Game(arcade.Window):
         else:
             self.player.change_x = 0
         self.physics_engine.update()
+
+        colliding_hidden = arcade.check_for_collision_with_list(self.player, self.hidden_list)
+
+        # Make visible all the hidden tiles a player touches
+        for hidden_tile in colliding_hidden:
+            self.hidden_list.remove(hidden_tile)
+            self.floor_list.append(hidden_tile)
+
 
 
     def on_key_press(self, key, modifiers):
