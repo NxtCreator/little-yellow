@@ -18,13 +18,14 @@ PLAYER_ART_SIZE = 24 # the size of the player PNGs
 REVEAL_RANGE = TILE_SIZE / 3
 
 LEVELS = [
-    "assets/level1.json"
+    "assets/level1.json",
+    "assets/level2.json"
 ]
 
 # Movement and physics
 GRAVITY = 1
-PLAYER_SPEED = 4
-PLAYER_JUMP_SPEED = 15
+PLAYER_SPEED = 6
+PLAYER_JUMP_SPEED = 16
 MAX_JUMPS = 2          # 2 = one jump plus one extra jump in mid-air
 FALL_LIMIT = -200      # below this y, the player has fallen out of the world
 PLAYER_ACCELERATION = 0.3
@@ -75,6 +76,7 @@ class Game(arcade.Window):
 
         # load a map
         tile_map = arcade.load_tilemap(LEVELS[self.level_index], scaling=1.0)
+        print([s.position for s in tile_map.sprite_lists["Goal"]])
 
         # Brand-new lists every time, so a restart never piles
         # new tiles on top of the old ones.
