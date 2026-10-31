@@ -1,4 +1,6 @@
+import math
 import arcade
+
 
 # ---------------------------------------------------------------------------
 # GAME CONSTANTS
@@ -10,8 +12,11 @@ HEIGHT = 600
 TITLE = "Little Yellow"
 
 # Sizes (the player is smaller than a platform square on purpose)
-TILE_SIZE = 32
-PLAYER_SIZE = 24
+TILE_SIZE = 48
+PLAYER_SIZE = 36
+TILE_ART_SIZE = 32 # the size floor.png was drawn at
+PLAYER_ART_SIZE = 24 # the size of the player PNGs
+REVEAL_RANGE = TILE_SIZE / 1
 
 # Movement and physics
 GRAVITY = 1
@@ -19,6 +24,8 @@ PLAYER_SPEED = 4
 PLAYER_JUMP_SPEED = 15
 MAX_JUMPS = 2          # 2 = one jump plus one extra jump in mid-air
 FALL_LIMIT = -200      # below this y, the player has fallen out of the world
+PLAYER_ACCELERATION = 0.3
+PLAYER_FRICTION = 0.1
 
 
 class Game(arcade.Window):
@@ -31,6 +38,8 @@ class Game(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, TITLE)
         self.background_color = arcade.csscolor.BLACK
+        self.gui_camera = None
+        self.win_text = None
 
         # Sprites and lists. Declared here, built in setup().
         self.player = None
@@ -45,6 +54,8 @@ class Game(arcade.Window):
 
         self.physics_engine = None
 
+        self.camera = None
+
         # Level state
         self.spawn_point = None
         self.won = False
@@ -57,53 +68,42 @@ class Game(arcade.Window):
         """Build the level. Call it again to restart."""
         self.won = False
 
+        # load a map
+        tile_map = arcade.load_tilemap("assets/level1.json", scaling=1.0)
+
         # Brand-new lists every time, so a restart never piles
         # new tiles on top of the old ones.
         self.player_list = arcade.SpriteList()
-        self.floor_list = arcade.SpriteList()
-        self.hidden_list = arcade.SpriteList()
+        self.floor_list = tile_map.sprite_lists["Platforms"]
+        self.hidden_list = tile_map.sprite_lists["Hidden"]
         self.goal_list = arcade.SpriteList()
 
         self.left_texture = arcade.load_texture("assets/little_yellow_left.png")
         self.right_texture = arcade.load_texture("assets/little_yellow_right.png")
+
+        self.gui_camera = arcade.Camera2D()
+        self.win_text = arcade.Text(
+            "You win!", WIDTH / 2, HEIGHT / 2, arcade.color.WHITE, 40, anchor_x="center"
+        )
 
         # --- Floor ---
         # Everything vertical below is measured from these two numbers.
         floor_center_y = TILE_SIZE / 2
         floor_top = floor_center_y + TILE_SIZE / 2
 
-        # Assumes WIDTH = 800 and TILE_SIZE = 32 (25 tiles fill the window).
-        for i in range(25):
-            floor = arcade.Sprite("assets/floor.png")
-
-            # Sprites are positioned by their center, so shift each tile
-            # half a tile to the right of its left edge.
-            floor.center_x = i * TILE_SIZE + TILE_SIZE / 2
-            floor.center_y = floor_center_y
-            self.floor_list.append(floor)
-
         # --- Player ---
-        self.player = arcade.Sprite(self.right_texture)
-        self.player.center_x = WIDTH / 2
-        # Bottom edge of the player rests on the floor's top edge.
-        self.player.center_y = floor_top + PLAYER_SIZE / 2
+        self.player = arcade.Sprite(self.right_texture, scale=PLAYER_SIZE / PLAYER_ART_SIZE)
         self.player_list.append(self.player)
-
+        # start where the spawn marker was painted
+        spawn_marker = tile_map.sprite_lists["Spawn"][0]
+        self.player.position = spawn_marker.position
         # Where to come back to after falling out of the world.
         self.spawn_point = self.player.position
 
-        # --- Hidden tile (test) ---
-        # Lives in its own list so the physics engine ignores it
-        # until the player reveals it.
-        hidden_tile = arcade.Sprite("assets/floor.png")
-        hidden_tile.center_x = WIDTH / 2 + 3 * TILE_SIZE
-        hidden_tile.center_y = floor_top + TILE_SIZE / 2
-        self.hidden_list.append(hidden_tile)
-
-        # --- Goal (test) ---
-        goal = arcade.SpriteSolidColor(TILE_SIZE, TILE_SIZE, color=arcade.csscolor.GOLD)
-        goal.center_x = WIDTH / 2 + 5 * TILE_SIZE
-        goal.center_y = floor_top + 5 * TILE_SIZE + TILE_SIZE / 2
+        # --- Goal ---
+        goal_marker = tile_map.sprite_lists["Goal"][0]
+        goal = arcade.SpriteSolidColor(TILE_SIZE, TILE_SIZE, color=arcade.csscolor.BLUE_VIOLET)
+        goal.position = goal_marker.position
         self.goal_list.append(goal)
 
         # --- Physics ---
@@ -114,6 +114,9 @@ class Game(arcade.Window):
             gravity_constant=GRAVITY,
         )
         self.physics_engine.enable_multi_jump(MAX_JUMPS)
+
+        # create a camera
+        self.camera = arcade.Camera2D()  
 
     # -----------------------------------------------------------------------
     # Game loop
@@ -127,27 +130,36 @@ class Game(arcade.Window):
 
         # 1. Held keys decide the horizontal speed and which way we face.
         #    Only on_update sets change_x, so nothing else can fight over it.
-        if self.left_pressed:
-            self.player.change_x = -PLAYER_SPEED
+        target_speed = 0
+        if self.left_pressed and self.right_pressed:
+            target_speed = 0
+        elif self.left_pressed:
+            target_speed = -PLAYER_SPEED
             self.player.texture = self.left_texture
         elif self.right_pressed:
-            self.player.change_x = PLAYER_SPEED
+            target_speed = PLAYER_SPEED
             self.player.texture = self.right_texture
-        else:
-            # No key held: stop, but keep facing the way we last moved.
-            self.player.change_x = 0
+
+        # Slide to stop when no key  is help, speed-up otherwise
+        step = PLAYER_FRICTION if target_speed == 0 else PLAYER_ACCELERATION
+
+        if self.player.change_x < target_speed:
+            self.player.change_x = min(self.player.change_x + step, target_speed)
+        elif self.player.change_x > target_speed:
+            self.player.change_x = max(self.player.change_x - step, target_speed)
 
         # 2. The engine moves the player and handles gravity and collisions.
         self.physics_engine.update()
 
-        # 3. Reveal hidden tiles the player touched. Moving a tile to
-        #    floor_list makes it drawn and solid in one step.
-        touched_tiles = arcade.check_for_collision_with_list(
-            self.player, self.hidden_list
-        )
-        for tile in touched_tiles:
-            self.hidden_list.remove(tile)
-            self.floor_list.append(tile)
+        # 3. Reveal hidden tiles that are within range of the player.
+        #   list(...) makes a copy, because we remove tiles while looping
+        for tile in list(self.hidden_list):
+            gap_x = max(tile.left - self.player.left, self.player.right - tile.right, 0)
+            gap_y = max(tile.bottom - self.player.top, self.player.bottom - tile.top, 0)
+
+            if gap_x <= REVEAL_RANGE and gap_y <= REVEAL_RANGE:
+                self.hidden_list.remove(tile)
+                self.floor_list.append((tile))
 
         # 4. Fell out of the world: back to the start. Reset the vertical
         #    speed too, or the player returns still falling at full speed.
@@ -161,14 +173,22 @@ class Game(arcade.Window):
             self.won = True
             print("You win!")
 
+        # camera follows player
+        self.camera.position = self.player.position
+
     def on_draw(self):
         # Wipe the previous frame, then draw back to front.
         self.clear()
 
+        self.camera.use()
+
         self.floor_list.draw()
         self.goal_list.draw()
         self.player_list.draw()
-        # hidden_list is never drawn: that's what makes the tiles hidden.
+
+        self.gui_camera.use()
+        if self.won:
+            self.win_text.draw()
 
     # -----------------------------------------------------------------------
     # Input
