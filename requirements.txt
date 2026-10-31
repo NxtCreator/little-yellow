@@ -1,0 +1,9 @@
+arcade==3.3.3
+attrs==26.1.0
+cffi==2.1.1
+pillow==11.3.0
+pycparser==3.12
+pyglet==2.1.19
+pymunk==6.9.0
+pytiled_parser==2.2.9
+typing_extensions==4.16.0
