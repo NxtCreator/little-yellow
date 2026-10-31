@@ -14,9 +14,12 @@ TITLE = "Little Yellow"
 # Sizes (the player is smaller than a platform square on purpose)
 TILE_SIZE = 48
 PLAYER_SIZE = 36
-TILE_ART_SIZE = 32 # the size floor.png was drawn at
 PLAYER_ART_SIZE = 24 # the size of the player PNGs
-REVEAL_RANGE = TILE_SIZE / 1
+REVEAL_RANGE = TILE_SIZE / 3
+
+LEVELS = [
+    "assets/level1.json"
+]
 
 # Movement and physics
 GRAVITY = 1
@@ -40,6 +43,8 @@ class Game(arcade.Window):
         self.background_color = arcade.csscolor.BLACK
         self.gui_camera = None
         self.win_text = None
+        self.hint_text = None
+        self.level_index = 0
 
         # Sprites and lists. Declared here, built in setup().
         self.player = None
@@ -69,7 +74,7 @@ class Game(arcade.Window):
         self.won = False
 
         # load a map
-        tile_map = arcade.load_tilemap("assets/level1.json", scaling=1.0)
+        tile_map = arcade.load_tilemap(LEVELS[self.level_index], scaling=1.0)
 
         # Brand-new lists every time, so a restart never piles
         # new tiles on top of the old ones.
@@ -86,10 +91,10 @@ class Game(arcade.Window):
             "You win!", WIDTH / 2, HEIGHT / 2, arcade.color.WHITE, 40, anchor_x="center"
         )
 
-        # --- Floor ---
-        # Everything vertical below is measured from these two numbers.
-        floor_center_y = TILE_SIZE / 2
-        floor_top = floor_center_y + TILE_SIZE / 2
+        self.hint_text = arcade.Text(
+            "Hit 'N' to go to the next level " \
+            "or 'R' to restart level", WIDTH / 2, HEIGHT / 2 - 30, arcade.color.WHITE, 20, anchor_x="center"
+        )
 
         # --- Player ---
         self.player = arcade.Sprite(self.right_texture, scale=PLAYER_SIZE / PLAYER_ART_SIZE)
@@ -154,7 +159,7 @@ class Game(arcade.Window):
         # 3. Reveal hidden tiles that are within range of the player.
         #   list(...) makes a copy, because we remove tiles while looping
         for tile in list(self.hidden_list):
-            gap_x = max(tile.left - self.player.left, self.player.right - tile.right, 0)
+            gap_x = max(tile.left - self.player.right, self.player.left - tile.right, 0)
             gap_y = max(tile.bottom - self.player.top, self.player.bottom - tile.top, 0)
 
             if gap_x <= REVEAL_RANGE and gap_y <= REVEAL_RANGE:
@@ -187,8 +192,10 @@ class Game(arcade.Window):
         self.player_list.draw()
 
         self.gui_camera.use()
+
         if self.won:
             self.win_text.draw()
+            self.hint_text.draw()
 
     # -----------------------------------------------------------------------
     # Input
@@ -210,6 +217,12 @@ class Game(arcade.Window):
         # Restart the level.
         elif key == arcade.key.R:
             self.setup()
+
+        # Go to next level
+        elif key == arcade.key.N:
+            if self.won and self.level_index < len(LEVELS) - 1:
+                self.level_index += 1
+                self.setup()
 
     def on_key_release(self, key, modifiers):
         if key == arcade.key.LEFT:
