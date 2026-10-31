@@ -1,6 +1,10 @@
+import os
+import sys
 import math
 import arcade
 
+if getattr(sys, "frozen", False):
+    os.chdir(sys._MEIPASS)
 
 # ---------------------------------------------------------------------------
 # GAME CONSTANTS
@@ -76,7 +80,6 @@ class Game(arcade.Window):
 
         # load a map
         tile_map = arcade.load_tilemap(LEVELS[self.level_index], scaling=1.0)
-        print([s.position for s in tile_map.sprite_lists["Goal"]])
 
         # Brand-new lists every time, so a restart never piles
         # new tiles on top of the old ones.
@@ -178,7 +181,6 @@ class Game(arcade.Window):
         # 5. Reached the goal?
         if arcade.check_for_collision_with_list(self.player, self.goal_list):
             self.won = True
-            print("You win!")
 
         # camera follows player
         self.camera.position = self.player.position
