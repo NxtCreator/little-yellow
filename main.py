@@ -23,7 +23,8 @@ REVEAL_RANGE = TILE_SIZE / 3
 
 LEVELS = [
     "assets/level1.json",
-    "assets/level2.json"
+    "assets/level2.json",
+    "assets/level3.json"
 ]
 
 # Movement and physics
@@ -34,6 +35,7 @@ MAX_JUMPS = 2          # 2 = one jump plus one extra jump in mid-air
 FALL_LIMIT = -200      # below this y, the player has fallen out of the world
 PLAYER_ACCELERATION = 0.3
 PLAYER_FRICTION = 0.1
+GOAL_SPIN_SPEED = 180
 
 
 class Game(arcade.Window):
@@ -44,7 +46,7 @@ class Game(arcade.Window):
     # -----------------------------------------------------------------------
 
     def __init__(self):
-        super().__init__(WIDTH, HEIGHT, TITLE)
+        super().__init__(WIDTH, HEIGHT, TITLE, resizable=True)
         self.background_color = arcade.csscolor.BLACK
         self.gui_camera = None
         self.win_text = None
@@ -57,6 +59,7 @@ class Game(arcade.Window):
         self.floor_list = None      # solid tiles, also the engine's "walls"
         self.hidden_list = None     # not drawn and not solid until touched
         self.goal_list = None
+        self.squash = 0.0
 
         # The player's two faces (left and right)
         self.left_texture = None
@@ -88,6 +91,7 @@ class Game(arcade.Window):
         self.hidden_list = tile_map.sprite_lists["Hidden"]
         self.goal_list = arcade.SpriteList()
 
+
         self.left_texture = arcade.load_texture("assets/little_yellow_left.png")
         self.right_texture = arcade.load_texture("assets/little_yellow_right.png")
 
@@ -112,7 +116,7 @@ class Game(arcade.Window):
 
         # --- Goal ---
         goal_marker = tile_map.sprite_lists["Goal"][0]
-        goal = arcade.SpriteSolidColor(TILE_SIZE, TILE_SIZE, color=arcade.csscolor.BLUE_VIOLET)
+        goal = arcade.Sprite("assets/goal_24.png")
         goal.position = goal_marker.position
         self.goal_list.append(goal)
 
@@ -134,9 +138,14 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time):
         """Runs every frame: input -> physics -> reveals -> respawn -> win."""
+
+        for goal in self.goal_list:
+            goal.angle += GOAL_SPIN_SPEED * delta_time
+
         # Freeze the game once the level is won.
         if self.won:
             return
+        
 
         # 1. Held keys decide the horizontal speed and which way we face.
         #    Only on_update sets change_x, so nothing else can fight over it.
@@ -158,8 +167,15 @@ class Game(arcade.Window):
         elif self.player.change_x > target_speed:
             self.player.change_x = max(self.player.change_x - step, target_speed)
 
+        prev_y_speed = self.player.change_y
+
         # 2. The engine moves the player and handles gravity and collisions.
         self.physics_engine.update()
+
+        self.squash = max(self.squash - 2.5 * delta_time, 0)
+
+        if prev_y_speed < -4 and self.player.change_y == 0:
+            self.squash = 0.3
 
         # 3. Reveal hidden tiles that are within range of the player.
         #   list(...) makes a copy, because we remove tiles while looping
@@ -193,7 +209,15 @@ class Game(arcade.Window):
 
         self.floor_list.draw()
         self.goal_list.draw()
-        self.player_list.draw()
+
+        w = PLAYER_SIZE * (1 + self.squash)   # wider when squashed
+        h = PLAYER_SIZE * (1 - self.squash)   # shorter when squashed
+        arcade.draw_texture_rect(
+            self.player.texture,
+            arcade.rect.XYWH(self.player.center_x, self.player.bottom + h / 2, w, h),
+        )
+        
+
 
         self.gui_camera.use()
 
@@ -228,11 +252,32 @@ class Game(arcade.Window):
                 self.level_index += 1
                 self.setup()
 
+        elif key == arcade.key.F11:
+            self.set_fullscreen(not self.fullscreen)
+
     def on_key_release(self, key, modifiers):
         if key == arcade.key.LEFT:
             self.left_pressed = False
         elif key == arcade.key.RIGHT:
             self.right_pressed = False
+
+    def on_resize(self, width, height):
+        super().on_resize(width, height)
+
+        if self.camera is None or self.gui_camera is None:
+            return
+        
+        self.camera.match_window()
+        self.gui_camera.match_window(position=True)
+
+        # Keep the win text centered on the new window size
+        self.win_text.x = width / 2
+        self.win_text.y = height / 2
+        self.hint_text.x = width / 2
+        self.hint_text.y = height / 2 - 30
+
+
+
 
 
 def main():
